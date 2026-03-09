@@ -1,0 +1,13 @@
+﻿{
+  "name": "edge-rewrite-api",
+  "main": "src/index.js",
+  "compatibility_date": "2026-03-09",
+  "observability": {
+    "enabled": true
+  },
+  "vars": {
+    "APP_BASE_URL": "http://localhost:5173",
+    "SUPABASE_URL": "https://your-project.supabase.co",
+    "SUPABASE_ANON_KEY": "replace-me"
+  }
+}
