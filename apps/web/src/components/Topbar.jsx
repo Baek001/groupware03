@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { alarmAPI, messengerAPI } from '../services/api';
@@ -8,6 +8,7 @@ export default function Topbar() {
     const { user, currentTenant, logout } = useAuth();
     const [alarmCount, setAlarmCount] = useState(0);
     const [messageCount, setMessageCount] = useState(0);
+    const isAdmin = ['OWNER', 'ADMIN'].includes(String(currentTenant?.tenantRoleCd || '').toUpperCase());
 
     useEffect(() => {
         let active = true;
@@ -55,15 +56,16 @@ export default function Topbar() {
                 <strong>{currentTenant?.tenantNm || 'Edge Workspace'}</strong>
                 <div style={{ fontSize: '12px', opacity: 0.75 }}>
                     {user?.userNm || 'Guest'}
-                    {currentTenant?.tenantRoleCd ? ` · ${currentTenant.tenantRoleCd}` : ''}
+                    {currentTenant?.tenantRoleCd ? ` | ${currentTenant.tenantRoleCd}` : ''}
                 </div>
             </div>
-            <div className="topbar-actions" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <button type="button" className="btn btn-outline" onClick={() => navigate('/')}>대시보드</button>
-                <button type="button" className="btn btn-outline" onClick={() => navigate('/messenger')}>메신저 {messageCount > 0 ? `(${messageCount})` : ''}</button>
-                <button type="button" className="btn btn-outline" onClick={() => navigate('/mypage')}>내 정보</button>
-                <span className="badge badge-gray">알림 {alarmCount}</span>
-                <button type="button" className="btn btn-primary" onClick={handleLogout}>로그아웃</button>
+            <div className="topbar-actions" style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                <button type="button" className="btn btn-outline" onClick={() => navigate('/')}>Dashboard</button>
+                {isAdmin && <button type="button" className="btn btn-outline" onClick={() => navigate('/admin')}>Admin</button>}
+                <button type="button" className="btn btn-outline" onClick={() => navigate('/messenger')}>Messenger {messageCount > 0 ? `(${messageCount})` : ''}</button>
+                <button type="button" className="btn btn-outline" onClick={() => navigate('/mypage')}>Profile</button>
+                <span className="badge badge-gray">Alerts {alarmCount}</span>
+                <button type="button" className="btn btn-primary" onClick={handleLogout}>Logout</button>
             </div>
         </header>
     );

@@ -5,6 +5,7 @@ import {
   handleListWorkspaces,
   handleSession,
   handleSwitchTenant,
+  requireAdminWorkspaceContext,
   requireWorkspaceContext,
 } from './lib/context.js';
 import {
@@ -23,6 +24,7 @@ import {
   handleSaveBoard,
   handleUnsaveBoard,
 } from './features/boards.js';
+import { handleAdminDashboard } from './features/admin.js';
 import {
   handleChatPanel,
   handleChatRooms,
@@ -120,6 +122,12 @@ export default {
 
       if (pathname === '/common/auth/switch-tenant' && request.method === 'POST') {
         return handleSwitchTenant(request, runtimeEnv);
+      }
+
+      if (pathname === '/rest/admin/dashboard' && request.method === 'GET') {
+        const context = await requireAdminWorkspaceContext(request, runtimeEnv);
+        if (context.error) return context.error;
+        return handleAdminDashboard(context, runtimeEnv);
       }
 
       if (pathname === '/rest/dashboard' && request.method === 'GET') {

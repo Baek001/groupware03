@@ -11,6 +11,7 @@ const DashboardPage = lazy(() => import('./pages/DashboardPage'));
 const WorkspaceSetupPage = lazy(() => import('./pages/WorkspaceSetupPage'));
 const BoardListPage = lazy(() => import('./pages/board/BoardListPage'));
 const MessengerPage = lazy(() => import('./pages/messenger/MessengerPage'));
+const AdminDashboardPage = lazy(() => import('./pages/admin/AdminDashboardPage'));
 
 function RouteFallback() {
     return (
@@ -38,6 +39,7 @@ function App() {
                         <Route path="/setup" element={<RoutedPage><WorkspaceSetupPage /></RoutedPage>} />
                         <Route path="/board" element={<RoutedPage><BoardListPage /></RoutedPage>} />
                         <Route path="/messenger" element={<RoutedPage><MessengerPage /></RoutedPage>} />
+                        <Route path="/admin" element={<RoutedPage><AdminDashboardPage /></RoutedPage>} />
                         <Route path="/organization" element={<ComingSoonPage />} />
                         <Route path="/approval" element={<ComingSoonPage />} />
                         <Route path="/approval/contracts" element={<ComingSoonPage />} />

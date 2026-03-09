@@ -1,4 +1,4 @@
-﻿import axios from 'axios';
+import axios from 'axios';
 import { getApiBaseUrl } from '../config/runtime';
 import { getAccessToken, requireSession, signInWithPassword, signOut, signUpWithPassword } from './supabaseAuth';
 
@@ -361,6 +361,10 @@ export const boardAPI = {
         },
         params: { cmntSqn },
     }),
+};
+
+export const adminAPI = {
+    dashboard: () => api.get('/rest/admin/dashboard'),
 };
 
 export const attendanceAPI = {

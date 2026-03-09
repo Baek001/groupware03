@@ -1,4 +1,4 @@
-﻿import { buildSessionFromDatabase, requireUser } from './session.js';
+import { buildSessionFromDatabase, requireUser } from './session.js';
 import { error, json } from './http.js';
 import { patchRows, rpc, selectRows } from './supabase.js';
 
@@ -67,6 +67,20 @@ export function resolveCurrentWorkspaceId(session, profile, memberships) {
   return session?.currentTenant?.tenantId || profile?.current_workspace_id || memberships?.[0]?.workspace_id || '';
 }
 
+export function isAdminRole(role = '') {
+  return ['OWNER', 'ADMIN'].includes(String(role || '').toUpperCase());
+}
+
+export function resolveCurrentMembership(session, workspaceId = '') {
+  if (!session) {
+    return null;
+  }
+
+  return session.memberships?.find((item) => item.tenantId === workspaceId)
+    || session.currentTenant
+    || null;
+}
+
 export async function requireWorkspaceContext(request, runtimeEnv) {
   const auth = await requireUser(request, runtimeEnv);
   if (auth.error) {
@@ -79,7 +93,7 @@ export async function requireWorkspaceContext(request, runtimeEnv) {
 
   if (!workspaceId) {
     return {
-      error: error('워크스페이스를 먼저 만들어 주세요.', { status: 400, origin: auth.origin }),
+      error: error('Create a workspace first.', { status: 400, origin: auth.origin }),
     };
   }
 
@@ -89,6 +103,22 @@ export async function requireWorkspaceContext(request, runtimeEnv) {
     session,
     workspaceId,
   };
+}
+
+export async function requireAdminWorkspaceContext(request, runtimeEnv) {
+  const context = await requireWorkspaceContext(request, runtimeEnv);
+  if (context.error) {
+    return context;
+  }
+
+  const membership = resolveCurrentMembership(context.session, context.workspaceId);
+  if (!isAdminRole(membership?.tenantRoleCd)) {
+    return {
+      error: error('Admin access required.', { status: 403, origin: context.auth.origin }),
+    };
+  }
+
+  return context;
 }
 
 export async function handleSession(request, runtimeEnv) {
@@ -137,7 +167,7 @@ export async function handleCreateWorkspace(request, runtimeEnv) {
   const slug = String(body?.slug || body?.workspaceSlug || '').trim();
 
   if (!name) {
-    return error('워크스페이스 이름을 입력해 주세요.', { status: 400, origin: auth.origin });
+    return error('?????? ??? ??? ???.', { status: 400, origin: auth.origin });
   }
 
   const workspace = await rpc(runtimeEnv, 'create_workspace', {
@@ -163,13 +193,13 @@ export async function handleSwitchTenant(request, runtimeEnv) {
   const body = await request.json().catch(() => ({}));
   const tenantId = String(body?.tenantId || '');
   if (!tenantId) {
-    return error('워크스페이스를 선택해 주세요.', { status: 400, origin: auth.origin });
+    return error('??????? ??? ???.', { status: 400, origin: auth.origin });
   }
 
   const { memberships } = await loadSessionBundle(runtimeEnv, auth);
   const canAccess = memberships.some((item) => item.workspace_id === tenantId);
   if (!canAccess) {
-    return error('워크스페이스 권한이 없습니다.', { status: 403, origin: auth.origin });
+    return error('?????? ??? ????.', { status: 403, origin: auth.origin });
   }
 
   await patchRows(runtimeEnv, 'profiles', {
