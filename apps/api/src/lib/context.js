@@ -65,8 +65,10 @@ export async function loadSessionBundle(runtimeEnv, auth, { forceRefresh = false
     }
   }
 
-  const profile = await loadProfile(runtimeEnv, auth.token, auth.user.id);
-  const memberships = await loadMemberships(runtimeEnv, auth.token, auth.user.id);
+  const [profile, memberships] = await Promise.all([
+    loadProfile(runtimeEnv, auth.token, auth.user.id),
+    loadMemberships(runtimeEnv, auth.token, auth.user.id),
+  ]);
   const workspaces = await loadWorkspaces(runtimeEnv, auth.token, memberships.map((item) => item.workspace_id));
   const bundle = { profile, memberships, workspaces };
   setCachedSessionBundle(auth.token, bundle);

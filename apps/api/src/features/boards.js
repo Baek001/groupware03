@@ -83,6 +83,24 @@ function boardSelect() {
   ].join(',');
 }
 
+function boardListSelect() {
+  return [
+    'id',
+    'workspace_id',
+    'author_user_id',
+    'category_code',
+    'board_kind',
+    'title',
+    'excerpt',
+    'is_pinned',
+    'allow_comments',
+    'published_at',
+    'created_at',
+    'updated_at',
+    'author:profiles!boards_author_user_id_fkey(id,display_name,dept_name,job_title,email)',
+  ].join(',');
+}
+
 function commentSelect() {
   return [
     'id',
@@ -206,11 +224,11 @@ function normalizeWorkspaceItem(board, currentUserId, categoryMap, commentCountM
   };
 }
 
-async function loadNotices(runtimeEnv, token, workspaceId, limit = 5) {
+async function loadNotices(runtimeEnv, token, workspaceId, limit = 5, select = boardSelect()) {
   const rows = await selectRows(runtimeEnv, 'boards', {
     token,
     params: {
-      select: boardSelect(),
+      select,
       workspace_id: `eq.${workspaceId}`,
       deleted_at: 'is.null',
       board_kind: 'eq.NOTICE',
@@ -298,6 +316,7 @@ async function loadBoardAux(runtimeEnv, token, workspaceId, currentUserId, board
         select: 'board_id',
         workspace_id: `eq.${workspaceId}`,
         author_user_id: `eq.${currentUserId}`,
+        board_id: idFilter,
         deleted_at: 'is.null',
       },
     }),
@@ -324,7 +343,7 @@ async function loadBoardAux(runtimeEnv, token, workspaceId, currentUserId, board
 
 export async function handleDashboardBootstrap(context, runtimeEnv) {
   const categories = await loadBoardCategories(runtimeEnv, context.auth.token);
-  const notices = await loadNotices(runtimeEnv, context.auth.token, context.workspaceId, 5);
+  const notices = await loadNotices(runtimeEnv, context.auth.token, context.workspaceId, 5, boardListSelect());
   const widgets = emptyWidgets();
   widgets.notices = notices.map(normalizeNoticeItem);
 
@@ -347,7 +366,7 @@ export async function handleDashboardFeed(context, runtimeEnv, request) {
   const categoryRows = await loadBoardCategories(runtimeEnv, context.auth.token);
   const categoryMap = new Map(categoryRows.map((item) => [item.code, item.label]));
   const params = {
-    select: boardSelect(),
+    select: boardListSelect(),
     workspace_id: `eq.${context.workspaceId}`,
     deleted_at: 'is.null',
     order: 'is_pinned.desc,published_at.desc',
@@ -460,7 +479,7 @@ export async function handleBoardWorkspace(context, runtimeEnv, request) {
   const categoryRows = await loadBoardCategories(runtimeEnv, context.auth.token);
   const categoryMap = new Map(categoryRows.map((item) => [item.code, item.label]));
   const params = {
-    select: boardSelect(),
+    select: boardListSelect(),
     workspace_id: `eq.${context.workspaceId}`,
     deleted_at: 'is.null',
     order: 'is_pinned.desc,published_at.desc',
