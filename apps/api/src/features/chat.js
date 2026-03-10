@@ -80,6 +80,20 @@ function normalizeMessage(message = {}, currentUserId = '', readCount = 0, files
   };
 }
 
+function normalizeAttachedFile(file = {}) {
+  return {
+    fileId: file.id,
+    ownerType: file.owner_type || '',
+    ownerId: file.owner_id || '',
+    bucketName: file.bucket_name || '',
+    objectPath: file.object_path || '',
+    originalName: file.original_name || '',
+    mimeType: file.mime_type || '',
+    sizeBytes: Number(file.size_bytes || 0),
+    createdAt: file.created_at || null,
+  };
+}
+
 async function loadRoomBaseRows(runtimeEnv, token, workspaceId, userId) {
   const rows = await selectRows(runtimeEnv, 'chat_members', {
     token,
@@ -185,10 +199,35 @@ async function loadRoomParticipants(runtimeEnv, token, roomId) {
 }
 
 async function loadMessageFiles(runtimeEnv, token, messageIds = []) {
+  const messageFilter = createInFilter(messageIds);
+  if (!messageFilter) {
+    return new Map();
+  }
+
+  const rows = await selectRows(runtimeEnv, 'chat_message_files', {
+    token,
+    params: {
+      select: 'message_id,file:files!chat_message_files_file_id_fkey(id,owner_type,owner_id,bucket_name,object_path,original_name,mime_type,size_bytes,created_at)',
+      message_id: messageFilter,
+      order: 'created_at.asc',
+    },
+  });
+
   const map = new Map();
-  await Promise.all((messageIds || []).map(async (messageId) => {
-    map.set(messageId, await listFilesByOwner(runtimeEnv, token, 'CHAT_MESSAGE', messageId));
-  }));
+  (messageIds || []).forEach((messageId) => {
+    map.set(messageId, []);
+  });
+
+  (Array.isArray(rows) ? rows : []).forEach((row) => {
+    if (!row?.message_id || !row?.file) {
+      return;
+    }
+    if (!map.has(row.message_id)) {
+      map.set(row.message_id, []);
+    }
+    map.get(row.message_id).push(normalizeAttachedFile(row.file));
+  });
+
   return map;
 }
 

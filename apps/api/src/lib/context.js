@@ -1,4 +1,5 @@
 import { buildSessionFromDatabase, requireUser } from './session.js';
+import { getCachedSessionBundle, invalidateCachedSessionBundle, setCachedSessionBundle } from './cache.js';
 import { error, json } from './http.js';
 import { patchRows, rpc, selectRows } from './supabase.js';
 
@@ -56,11 +57,20 @@ export async function loadWorkspaces(runtimeEnv, token, workspaceIds) {
   return Array.isArray(rows) ? rows : [];
 }
 
-export async function loadSessionBundle(runtimeEnv, auth) {
+export async function loadSessionBundle(runtimeEnv, auth, { forceRefresh = false } = {}) {
+  if (!forceRefresh) {
+    const cachedBundle = getCachedSessionBundle(auth.token);
+    if (cachedBundle) {
+      return cachedBundle;
+    }
+  }
+
   const profile = await loadProfile(runtimeEnv, auth.token, auth.user.id);
   const memberships = await loadMemberships(runtimeEnv, auth.token, auth.user.id);
   const workspaces = await loadWorkspaces(runtimeEnv, auth.token, memberships.map((item) => item.workspace_id));
-  return { profile, memberships, workspaces };
+  const bundle = { profile, memberships, workspaces };
+  setCachedSessionBundle(auth.token, bundle);
+  return bundle;
 }
 
 export function resolveCurrentWorkspaceId(session, profile, memberships) {
@@ -178,7 +188,8 @@ export async function handleCreateWorkspace(request, runtimeEnv) {
     },
   });
 
-  const { profile, memberships, workspaces } = await loadSessionBundle(runtimeEnv, auth);
+  invalidateCachedSessionBundle(auth.token);
+  const { profile, memberships, workspaces } = await loadSessionBundle(runtimeEnv, auth, { forceRefresh: true });
   const session = buildSessionFromDatabase(auth.user, profile, memberships, workspaces, workspace?.id || '');
 
   return json({ workspace, session }, { status: 201, origin: auth.origin });
@@ -213,7 +224,8 @@ export async function handleSwitchTenant(request, runtimeEnv) {
     },
   });
 
-  const { profile, memberships: nextMemberships, workspaces } = await loadSessionBundle(runtimeEnv, auth);
+  invalidateCachedSessionBundle(auth.token);
+  const { profile, memberships: nextMemberships, workspaces } = await loadSessionBundle(runtimeEnv, auth, { forceRefresh: true });
   const session = buildSessionFromDatabase(auth.user, profile, nextMemberships, workspaces, tenantId);
   return json(session, { origin: auth.origin });
 }

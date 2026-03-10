@@ -1,5 +1,6 @@
 ﻿import { corsHeaders } from './http.js';
 import { fetchAuthUser } from './supabase.js';
+import { getCachedAuthUser, setCachedAuthUser } from './cache.js';
 
 function emptyMembership(user) {
   return {
@@ -72,7 +73,11 @@ export async function requireUser(request, env) {
   }
 
   try {
-    const user = await fetchAuthUser(env, match[1]);
+    const cachedUser = getCachedAuthUser(match[1]);
+    const user = cachedUser || await fetchAuthUser(env, match[1]);
+    if (!cachedUser) {
+      setCachedAuthUser(match[1], user);
+    }
     return { user, token: match[1], origin };
   } catch {
     return {
