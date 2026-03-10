@@ -1,5 +1,5 @@
 ﻿import { error, json } from '../lib/http.js';
-import { deleteRows, insertRows, selectRows } from '../lib/supabase.js';
+import { deleteRows, insertRows, rpc, selectRows } from '../lib/supabase.js';
 import { loadProfile } from '../lib/context.js';
 import { listFilesByOwner } from './files.js';
 
@@ -54,14 +54,6 @@ function stripHtml(value = '') {
 
 function buildExcerpt(value = '') {
   return stripHtml(value).slice(0, 180);
-}
-
-function createInFilter(values = []) {
-  const cleaned = [...new Set((values || []).filter(Boolean))];
-  if (cleaned.length === 0) {
-    return '';
-  }
-  return `in.(${cleaned.join(',')})`;
 }
 
 function boardSelect() {
@@ -265,9 +257,9 @@ async function loadCommentRows(runtimeEnv, token, boardId) {
   return Array.isArray(rows) ? rows : [];
 }
 
-async function loadBoardAux(runtimeEnv, token, workspaceId, currentUserId, boardIds = []) {
-  const idFilter = createInFilter(boardIds);
-  if (!idFilter) {
+async function loadBoardAux(runtimeEnv, token, workspaceId, boardIds = []) {
+  const targetBoardIds = [...new Set((boardIds || []).filter(Boolean))];
+  if (targetBoardIds.length === 0) {
     return {
       commentCountMap: new Map(),
       fileCountMap: new Map(),
@@ -277,67 +269,45 @@ async function loadBoardAux(runtimeEnv, token, workspaceId, currentUserId, board
     };
   }
 
-  const [comments, files, reads, saves, myComments] = await Promise.all([
-    selectRows(runtimeEnv, 'board_comments', {
-      token,
-      params: {
-        select: 'id,board_id',
-        board_id: idFilter,
-        deleted_at: 'is.null',
-      },
-    }),
-    selectRows(runtimeEnv, 'files', {
-      token,
-      params: {
-        select: 'id,owner_id',
-        owner_type: 'eq.BOARD',
-        owner_id: idFilter,
-      },
-    }),
-    selectRows(runtimeEnv, 'board_reads', {
-      token,
-      params: {
-        select: 'board_id',
-        user_id: `eq.${currentUserId}`,
-        board_id: idFilter,
-      },
-    }),
-    selectRows(runtimeEnv, 'board_saves', {
-      token,
-      params: {
-        select: 'board_id',
-        user_id: `eq.${currentUserId}`,
-        board_id: idFilter,
-      },
-    }),
-    selectRows(runtimeEnv, 'board_comments', {
-      token,
-      params: {
-        select: 'board_id',
-        workspace_id: `eq.${workspaceId}`,
-        author_user_id: `eq.${currentUserId}`,
-        board_id: idFilter,
-        deleted_at: 'is.null',
-      },
-    }),
-  ]);
-
-  const commentCountMap = new Map();
-  (Array.isArray(comments) ? comments : []).forEach((row) => {
-    commentCountMap.set(row.board_id, (commentCountMap.get(row.board_id) || 0) + 1);
+  const rows = await rpc(runtimeEnv, 'load_board_metrics', {
+    token,
+    body: {
+      target_workspace_id: workspaceId,
+      board_ids: targetBoardIds,
+    },
   });
 
+  const commentCountMap = new Map();
   const fileCountMap = new Map();
-  (Array.isArray(files) ? files : []).forEach((row) => {
-    fileCountMap.set(row.owner_id, (fileCountMap.get(row.owner_id) || 0) + 1);
+  const readIds = new Set();
+  const savedIds = new Set();
+  const commentedIds = new Set();
+
+  (Array.isArray(rows) ? rows : []).forEach((row) => {
+    if (!row?.board_id) {
+      return;
+    }
+
+    commentCountMap.set(row.board_id, Number(row.comment_count || 0));
+    fileCountMap.set(row.board_id, Number(row.file_count || 0));
+
+    if (row.read_yn) {
+      readIds.add(row.board_id);
+    }
+    if (row.saved_yn) {
+      savedIds.add(row.board_id);
+    }
+    if (row.commented_yn) {
+      commentedIds.add(row.board_id);
+    }
   });
 
   return {
     commentCountMap,
     fileCountMap,
-    readIds: new Set((Array.isArray(reads) ? reads : []).map((item) => item.board_id)),
-    savedIds: new Set((Array.isArray(saves) ? saves : []).map((item) => item.board_id)),
-    commentedIds: new Set((Array.isArray(myComments) ? myComments : []).map((item) => item.board_id)),
+    readIds,
+    savedIds,
+    commentedIds,
   };
 }
 
@@ -398,7 +368,7 @@ export async function handleDashboardFeed(context, runtimeEnv, request) {
     }, { origin: context.auth.origin });
   }
 
-  const aux = await loadBoardAux(runtimeEnv, context.auth.token, context.workspaceId, context.auth.user.id, boards.map((item) => item.id));
+  const aux = await loadBoardAux(runtimeEnv, context.auth.token, context.workspaceId, boards.map((item) => item.id));
   const filtered = boards.filter((board) => {
     if (scope === 'saved') return aux.savedIds.has(board.id);
     if (scope === 'unread') return !aux.readIds.has(board.id);
@@ -497,7 +467,7 @@ export async function handleBoardWorkspace(context, runtimeEnv, request) {
     params,
   });
   const boards = Array.isArray(rows) ? rows : [];
-  const aux = await loadBoardAux(runtimeEnv, context.auth.token, context.workspaceId, context.auth.user.id, boards.map((item) => item.id));
+  const aux = await loadBoardAux(runtimeEnv, context.auth.token, context.workspaceId, boards.map((item) => item.id));
   const totalPages = Math.max(1, Math.ceil(boards.length / BOARD_PAGE_SIZE));
   const pageItems = boards.slice((page - 1) * BOARD_PAGE_SIZE, page * BOARD_PAGE_SIZE);
 
