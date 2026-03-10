@@ -3042,7 +3042,12 @@ textarea.form-input,
 /* Responsive */
 @media (max-width: 768px) {
   .sidebar {
-    width: var(--sidebar-collapsed-width);
+    width: min(var(--sidebar-width), calc(100vw - 16px));
+    max-width: calc(100vw - 16px);
+  }
+
+  .sidebar:not(.collapsed) {
+    box-shadow: 12px 0 30px rgba(15, 23, 42, 0.24);
   }
 
   .topbar {
